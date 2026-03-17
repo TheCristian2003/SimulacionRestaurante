@@ -60,7 +60,7 @@ Estas carpetas se generan automáticamente cuando Unity abre el proyecto.
 Antes de comenzar necesitas instalar:
 
 Unity Hub
-Unity (misma versión del proyecto)
+Unity (6000.3.9f1)
 Git
 
 ---
@@ -69,7 +69,7 @@ Git
 
 Clonar el repositorio desde GitHub:
 
-git clone https://github.com/USUARIO/REPOSITORIO.git
+git clone https://github.com/TheCristian2003/SimulacionRestaurante
 
 Luego abrir **Unity Hub**:
 
@@ -102,7 +102,7 @@ La simulación realizará lo siguiente:
 
 # 6. Componentes principales del sistema
 
-## SimulationManager
+## SimulationManager (Manager)
 
 Script principal que controla:
 
@@ -179,7 +179,7 @@ Esto permite usar distintos modelos de personajes.
 
 ---
 
-# 9. Reglas para trabajar en equipo
+# 9. Para otra persona trabajar el proyecto
 
 Para evitar conflictos:
 
@@ -207,21 +207,10 @@ Library
 Temp
 Logs
 
-No modificar escenas si otra persona está trabajando en ellas al mismo tiempo.
-
-Preferir dividir tareas como:
-
-persona 1: scripts
-persona 2: entorno 3D
-persona 3: interfaz o animaciones
-
----
-
 # 11. Posibles mejoras futuras
 
 * mejorar animaciones de los clientes
 * mejorar el entorno del restaurante
-* agregar más cajeros
 * agregar estadísticas de simulación
 * mostrar tiempo promedio de espera
 * agregar interfaz de control de la simulación
