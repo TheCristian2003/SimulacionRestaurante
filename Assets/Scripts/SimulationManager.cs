@@ -19,6 +19,9 @@ public class SimulationManager : MonoBehaviour
 
     private Queue<GameObject> queue = new Queue<GameObject>();
     private bool cashierBusy = false;
+    private List<float> waitingTimes = new List<float>();
+    private Dictionary<GameObject, float> arrivalTimes = new Dictionary<GameObject, float>();
+    private int servedCustomers = 0;
 
     void Start()
     {
@@ -35,6 +38,8 @@ public class SimulationManager : MonoBehaviour
 
             GameObject prefab = customerPrefabs[Random.Range(0, customerPrefabs.Length)];
             GameObject c = Instantiate(prefab, spawnPoint.position, Quaternion.identity);
+
+            arrivalTimes[c] = Time.time;
 
             if(queue.Count < maxQueueSize)
             {
@@ -68,6 +73,12 @@ public class SimulationManager : MonoBehaviour
                 {
                     yield return null;
                 }
+
+                // 🔵 AQUI calculas el tiempo de espera
+                float wait = Time.time - arrivalTimes[customer];
+                waitingTimes.Add(wait);
+
+                Debug.Log("Tiempo de espera cliente: " + wait);
 
                 // AHORA empieza el servicio
                 cashierBusy = true;
