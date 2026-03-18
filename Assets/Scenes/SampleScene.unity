@@ -1084,7 +1084,7 @@ Transform:
   m_GameObject: {fileID: 1380325042}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2, y: 1, z: -12}
+  m_LocalPosition: {x: 10, y: 1, z: -12}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1330,10 +1330,11 @@ MonoBehaviour:
   - {fileID: 1797757318}
   - {fileID: 1989531909}
   - {fileID: 1681961267}
-  minArrivalTime: 7
-  maxArrivalTime: 8
-  serviceTime: 4
-  maxQueueSize: 10
+  minArrivalTime: 5
+  maxArrivalTime: 7
+  minServiceTime: 3
+  maxServiceTime: 4
+  maxQueueSize: 5
 --- !u!4 &1732937435
 Transform:
   m_ObjectHideFlags: 0

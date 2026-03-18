@@ -1,27 +1,35 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Globalization;
 using UnityEngine;
 
 public class SimulationManager : MonoBehaviour
 {
+    [Header("Referencias")]
     public StatsManager statsManager;
     public GameObject[] customerPrefabs;
     public Transform spawnPoint;
-
     public Transform cashierPoint;
     public Transform exitPoint;
     public Transform[] queuePoints;
 
-    public float minArrivalTime = 6f;
-    public float maxArrivalTime = 8f;
-    public float serviceTime = 5f;
-    public int maxQueueSize = 10;
+    [Header("Parámetros")]
+    public float minArrivalTime = 6f;   // ajustado
+    public float maxArrivalTime = 8f;  // ajustado
+    public float minServiceTime = 5f;   // NUEVO
+    public float maxServiceTime = 5f;   // NUEVO
+    public int maxQueueSize = 20;
 
     private Queue<GameObject> queue = new Queue<GameObject>();
     private bool cashierBusy = false;
-    private List<float> waitingTimes = new List<float>();
-    private Dictionary<GameObject, float> arrivalTimes = new Dictionary<GameObject, float>();
     private int servedCustomers = 0;
+
+    private List<CustomerRecord> records = new List<CustomerRecord>();
+    private Dictionary<GameObject, CustomerRecord> recordByObject = new Dictionary<GameObject, CustomerRecord>();
+
+    private int nextClientId = 1;
 
     void Start()
     {
@@ -39,20 +47,36 @@ public class SimulationManager : MonoBehaviour
             GameObject prefab = customerPrefabs[Random.Range(0, customerPrefabs.Length)];
             GameObject c = Instantiate(prefab, spawnPoint.position, Quaternion.identity);
 
-            arrivalTimes[c] = Time.time;
+            int clientId = nextClientId++;
 
-            if(queue.Count < maxQueueSize)
+            var rec = new CustomerRecord
+            {
+                Run = 1,
+                ClientId = clientId,
+                ArrivalTime = Time.time,
+                ServiceStart = -1f,
+                ServiceEnd = -1f,
+                ServiceTime = -1f,
+                Wait = -1f,
+                QueueLengthAtArrival = queue.Count,
+                Rejected = false
+            };
+
+            records.Add(rec);
+            recordByObject[c] = rec;
+
+            if (queue.Count < maxQueueSize)
             {
                 queue.Enqueue(c);
                 statsManager.customersArrived++;
                 UpdateQueuePositions();
-
-                Debug.Log("Cliente llegó. Cola: " + queue.Count);
             }
             else
             {
+                rec.Rejected = true;
+                recordByObject.Remove(c);
+                statsManager.customersArrived++;
                 Destroy(c);
-                Debug.Log("Cliente se fue, cola llena");
             }
         }
     }
@@ -65,41 +89,53 @@ public class SimulationManager : MonoBehaviour
             {
                 GameObject customer = queue.Dequeue();
 
-                // el cliente va al cajero
-                customer.GetComponent<Customer>().SetTarget(cashierPoint.position);
-
-                // esperar a que llegue
-                while (Vector3.Distance(customer.transform.position, cashierPoint.position) > 0.5f)
+                if (!recordByObject.TryGetValue(customer, out CustomerRecord rec))
                 {
-                    yield return null;
+                    Destroy(customer);
+                    continue;
                 }
 
-                // 🔵 AQUI calculas el tiempo de espera
-                float wait = Time.time - arrivalTimes[customer];
-                waitingTimes.Add(wait);
+                customer.GetComponent<Customer>().SetTarget(cashierPoint.position);
 
-                Debug.Log("Tiempo de espera cliente: " + wait);
+                while (Vector3.Distance(customer.transform.position, cashierPoint.position) > 0.5f)
+                    yield return null;
 
-                // AHORA empieza el servicio
+                // TIEMPO DE ESPERA
+                float wait = Time.time - rec.ArrivalTime;
+                rec.Wait = wait;
+                rec.ServiceStart = Time.time;
+
+                Debug.Log($"Cliente {rec.ClientId} espera: {wait:F2}s");
+
                 cashierBusy = true;
 
-                yield return new WaitForSeconds(serviceTime);
+                // SERVICIO ALEATORIO (SOLUCIÓN A LA COLA INFINITA)
+                float actualServiceTime = Random.Range(minServiceTime, maxServiceTime);
+                rec.ServiceTime = actualServiceTime;
 
-                // servicio terminado
+                yield return new WaitForSeconds(actualServiceTime);
+
+                rec.ServiceEnd = Time.time;
                 cashierBusy = false;
 
                 UpdateQueuePositions();
 
-                // cliente se va
                 customer.GetComponent<Customer>().SetTarget(exitPoint.position);
 
                 while (Vector3.Distance(customer.transform.position, exitPoint.position) > 0.5f)
-                {
                     yield return null;
-                }
 
                 statsManager.customersServed++;
+                servedCustomers++;
+
+                recordByObject.Remove(customer);
                 Destroy(customer);
+
+                // Exportar cada 20 clientes (útil para tu entrega)
+                if (servedCustomers % 20 == 0)
+                {
+                    ExportCsv();
+                }
             }
 
             yield return null;
@@ -107,22 +143,85 @@ public class SimulationManager : MonoBehaviour
     }
 
     void UpdateQueuePositions()
+    {
+        int i = 0;
+        foreach (GameObject customer in queue)
         {
-            int i = 0;
+            if (customer == null) { i++; continue; }
 
-            foreach (GameObject customer in queue)
+            if (i == 0 && !cashierBusy)
             {
-                if (i == 0 && !cashierBusy)
-                {
-                    // el primero va directo al cajero
-                    customer.GetComponent<Customer>().SetTarget(cashierPoint.position);
-                }
-                else if (i < queuePoints.Length)
-                {
-                    customer.GetComponent<Customer>().SetTarget(queuePoints[i].position);
-                }
-
-                i++;
+                customer.GetComponent<Customer>().SetTarget(cashierPoint.position);
             }
+            else if (i < queuePoints.Length)
+            {
+                customer.GetComponent<Customer>().SetTarget(queuePoints[i].position);
+            }
+            else
+            {
+                customer.GetComponent<Customer>().SetTarget(queuePoints[queuePoints.Length - 1].position);
+            }
+
+            i++;
         }
+    }
+
+    // EXPORTAR CSV EN CARPETA "Muestras"
+    public void ExportCsv()
+    {
+        string folderPath = Path.Combine(Application.dataPath, "../Muestras");
+
+        if (!Directory.Exists(folderPath))
+        {
+            Directory.CreateDirectory(folderPath);
+        }
+
+        int fileIndex = Directory.GetFiles(folderPath, "muestra_*.csv").Length + 1;
+        string fileName = "muestra_" + fileIndex + ".csv";
+        string path = Path.Combine(folderPath, fileName);
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine("ClientId,ArrivalTime,ServiceStart,ServiceEnd,Wait,ServiceTime,QueueLength,Rejected");
+
+        foreach (var r in records)
+        {
+            string line = string.Format(CultureInfo.InvariantCulture,
+                "{0},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2},{6},{7}",
+                r.ClientId,
+                r.ArrivalTime,
+                r.ServiceStart,
+                r.ServiceEnd,
+                r.Wait,
+                r.ServiceTime,
+                r.QueueLengthAtArrival,
+                r.Rejected ? 1 : 0
+            );
+
+            sb.AppendLine(line);
+        }
+
+        File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+
+        Debug.Log("CSV guardado en: " + path);
+    }
+
+    void OnApplicationQuit()
+    {
+        ExportCsv();
+    }
+
+    [System.Serializable]
+    public class CustomerRecord
+    {
+        public int Run;
+        public int ClientId;
+        public float ArrivalTime;
+        public float ServiceStart;
+        public float ServiceEnd;
+        public float Wait;
+        public float ServiceTime;
+        public int QueueLengthAtArrival;
+        public bool Rejected;
+    }
 }
